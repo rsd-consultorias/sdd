@@ -11,6 +11,8 @@ SDD follows a four-phase workflow for each feature:
 3. **Implementation** (Variable) - Write code across 4 layers
 4. **Validation** (1-2 days) - Testing, code review, compliance
 
+![alt text](image.png)
+
 ## What's Included
 
 ### Core Documentation
