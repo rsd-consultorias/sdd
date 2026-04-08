@@ -390,6 +390,11 @@ ApplicationException (base)
 | Monitoring | Prometheus/ELK | Latest |
 | Tracing | Jaeger | Latest |
 
+### 18.1 Specific Constraints
+- **SC01**: Never use Lombok
+- **SC02**: When applied for DTO and Value Objects prefer record instead of class
+- **SC03**: Every method SHOULD be documented with Java Doc comments
+
 ---
 
 ## 19. Review & Approval
