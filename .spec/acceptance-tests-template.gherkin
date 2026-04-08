@@ -1,0 +1,295 @@
+# Acceptance Test Specification Template
+
+**Purpose:** Document acceptance criteria in executable format (Gherkin/BDD).
+
+**Format:** Gherkin (compatible with Cucumber, JBehave)  
+**Best Practice:** One .gherkin file per feature
+
+---
+
+## How to Use
+
+1. **Create file**: `/.spec/acceptance-tests/{feature-name}.gherkin`
+2. **Write scenarios** in Gherkin format (Given/When/Then)
+3. **Reference specification**: Each scenario maps to acceptance criterion
+4. **Execute**: Run with BDD framework or manual test cases
+
+---
+
+## Template Structure
+
+```gherkin
+# file: /.spec/acceptance-tests/{feature-name}.gherkin
+
+Feature: [Feature Name]
+  As a [role/user]
+  I want to [action/capability]
+  So that [business benefit]
+  
+  Related Specification: /.spec/specs/{feature-name}.md
+
+  Background:
+    # Setup shared across all scenarios in this feature
+    Given [common precondition]
+    And [common precondition]
+
+  Scenario: [Scenario Name / Maps to AC-1]
+    Given [precondition]
+    And [precondition]
+    When [user action]
+    Then [expected outcome]
+    And [additional verification]
+
+  Scenario: [Scenario Name / Maps to AC-2]
+    Given [precondition]
+    When [user action]
+    Then [expected outcome]
+
+  # Outline for parameterized testing
+  Scenario Outline: [Parameterized test]
+    Given user with <role>
+    When <action> is performed
+    Then <outcome> occurs
+    
+    Examples: Valid Cases
+      | role  | action | outcome |
+      | admin | create | success |
+      | user  | create | error   |
+```
+
+---
+
+## Example: User Authentication
+
+```gherkin
+# file: /.spec/acceptance-tests/user-authentication.gherkin
+
+Feature: User Authentication with JWT
+  As an API consumer
+  I want to authenticate using username/password
+  So that I can access protected resources securely
+  
+  Related Specification: /.spec/specs/user-authentication.md
+  Related Tests: AuthIntegrationTests, LoginServiceTests
+
+  Background:
+    # Test data setup
+    Given a test user with username "testuser" and password "SecurePass123"
+    And the user account is active
+
+  Scenario: AC-1 - Successful login with valid credentials
+    """
+    Validates FR-1: User Login
+    Test: LoginServiceTests.should_returnValidToken_when_credentialsValid()
+    """
+    Given a user with username "testuser"
+    When I submit a login request with password "SecurePass123"
+    Then I should receive HTTP 200 OK
+    And the response should contain a valid JWT access token
+    And the response should contain a refresh token
+    And the token should be valid for 1 hour
+    And the token should contain my user ID "testuser"
+    And the token should contain my role "USER"
+
+  Scenario: AC-2 - Failed login with invalid credentials
+    """
+    Validates FR-1: User Login error handling
+    Test: LoginIntegrationTests.should_reject_invalidCredentials()
+    """
+    Given a user with username "testuser"
+    When I submit a login request with password "WrongPassword"
+    Then I should receive HTTP 401 Unauthorized
+    And the response should contain error message "Invalid credentials"
+    And no JWT token should be returned
+    And the failed attempt should be logged
+
+  Scenario: AC-3 - Login attempt with nonexistent user
+    """
+    Validates FR-1: User Login error handling (edge case)
+    Test: LoginIntegrationTests.should_reject_nonexistentUser()
+    """
+    Given a user with username "nonexistent" does not exist
+    When I submit a login request for "nonexistent"
+    Then I should receive HTTP 401 Unauthorized
+    And the response should not reveal whether user exists
+
+  Scenario: AC-4 - Rate limiting on failed login attempts
+    """
+    Validates NFR-1: Security - Rate limiting
+    Test: RateLimitingTests.should_enforce_loginAttemptLimit()
+    """
+    Given I have made 4 failed login attempts from IP "192.168.1.1"
+    When I submit the 5th login request with wrong password
+    Then I should receive HTTP 429 Too Many Requests
+    And the response should indicate retry after 60 seconds
+
+  Scenario: AC-5 - Token validation for protected endpoint
+    """
+    Validates FR-2: Token Validation
+    Test: TokenValidationTests.should_accept_validToken()
+    """
+    Given I have a valid JWT access token
+    When I make a request to a protected endpoint with the token
+    Then I should receive HTTP 200 OK
+    And the protected resource should be returned
+
+  Scenario: AC-6 - Expired token rejection
+    """
+    Validates FR-2: Token Validation (expired token)
+    Test: TokenValidationTests.should_reject_expiredToken()
+    """
+    Given I have an expired JWT access token
+    When I make a request to a protected endpoint with the token
+    Then I should receive HTTP 401 Unauthorized
+    And the error message should indicate "token expired"
+
+  Scenario: AC-7 - Tampered token rejection
+    """
+    Validates FR-2: Token Validation (security)
+    Test: TokenValidationTests.should_reject_tamperedToken()
+    """
+    Given I have a valid JWT token
+    And I modify the token payload (e.g., change user_id)
+    When I make a request with the modified token
+    Then I should receive HTTP 401 Unauthorized
+    And the error message should indicate "invalid signature"
+
+  Scenario: AC-8 - Token refresh success
+    """
+    Validates FR-2: Token refresh
+    Test: TokenRefreshTests.should_generateNewToken_withValidRefreshToken()
+    """
+    Given I have a valid refresh token
+    When I submit a refresh token request
+    Then I should receive HTTP 200 OK
+    And a new access token should be returned
+    And the new token should be valid for 1 hour
+    And the refresh token should remain unchanged
+
+  Scenario: AC-9 - Invalid refresh token rejection
+    """
+    Validates FR-2: Token refresh error handling
+    Test: TokenRefreshTests.should_reject_invalidRefreshToken()
+    """
+    Given I have an invalid refresh token
+    When I submit a refresh token request
+    Then I should receive HTTP 401 Unauthorized
+    And no new access token should be issued
+
+  Scenario: AC-10 - Role-based access control
+    """
+    Validates FR-3: Role-Based Access
+    Test: AuthorizationTests.should_enforce_roleBasedAccess()
+    """
+    Given I am logged in as user with role "USER"
+    And the endpoint requires role "ADMIN"
+    When I make a request to that endpoint
+    Then I should receive HTTP 403 Forbidden
+    And the response should contain error "Access denied"
+
+  Scenario: AC-11 - Admin access to protected endpoint
+    """
+    Validates FR-3: Role-Based Access (authorized)
+    Test: AuthorizationTests.should_grantAccess_withRequiredRole()
+    """
+    Given I am logged in as user with role "ADMIN"
+    And the endpoint requires role "ADMIN"
+    When I make a request to that endpoint
+    Then I should receive HTTP 200 OK
+    And the protected resource should be returned
+
+  Scenario Outline: AC-12 - Performance targets
+    """
+    Validates NFR-2: Performance
+    Test: PerformanceTests.should_meetResponseTimeTargets()
+    """
+    When I perform <operation>
+    Then the response time should be less than <target_ms> milliseconds for P95
+    And the response time should be less than <target_ms_p99> milliseconds for P99
+
+    Examples: Performance Targets
+      | operation                | target_ms | target_ms_p99 |
+      | Login                    | 100       | 200           |
+      | Token validation         | 5         | 10            |
+      | Token refresh            | 50        | 100           |
+      | Protected resource access| 100       | 200           |
+
+  Scenario: AC-13 - Multiple concurrent login requests
+    """
+    Validates Scalability: Handle 1000 req/sec
+    Test: LoadTests.should_handle_concurrentLogins()
+    """
+    Given 1000 concurrent users attempting login
+    When all requests are submitted simultaneously
+    Then all should complete within 100ms (P95)
+    And success rate should be > 99%
+    And no deadlocks should occur
+
+  Scenario: AC-14 - Login audit trail
+    """
+    Validates Compliance & Audit
+    Test: AuditTests.should_logLoginAttempts()
+    """
+    Given a user has logged in successfully
+    When the audit log is queried
+    Then an entry should exist with:
+      | Field     | Value    |
+      | event     | LOGIN    |
+      | username  | testuser |
+      | timestamp | [recent] |
+      | status    | SUCCESS  |
+
+  Scenario: AC-15 - Failed login audit trail
+    """
+    Validates Compliance & Audit (error cases)
+    Test: AuditTests.should_logFailedLogins()
+    """
+    Given a user has submitted wrong password
+    When the audit log is queried
+    Then an entry should exist with:
+      | Field     | Value        |
+      | event     | LOGIN_FAILED |
+      | username  | testuser     |
+      | timestamp | [recent]     |
+      | ip_address| [user IP]    |
+      | status    | FAILED       |
+```
+
+---
+
+## Test Execution Mapping
+
+Each scenario should map to:
+1. **Specification AC**: AC-1, AC-2, etc.
+2. **Code Test Class**: Which JUnit test covers this
+3. **Test Method**: Specific `@Test` method
+
+| Scenario | AC | Test Class | Test Method | Status |
+|---|---|---|---|---|
+| Successful login | AC-1 | LoginServiceTests | should_returnValidToken_when_credentialsValid() | ✅ |
+| Failed login | AC-2 | LoginIntegrationTests | should_reject_invalidCredentials() | ✅ |
+| Rate limiting | AC-4 | RateLimitingTests | should_enforce_loginAttemptLimit() | ✅ |
+
+---
+
+## Best Practices
+
+### DO ✅
+- One scenario per acceptance criterion
+- Clear Given/When/Then structure
+- Use concrete examples, not abstractions
+- Make scenarios independent (Background for shared setup)
+- Keep scenarios focused (one action, one verification)
+- Reference spec and test class
+
+### DON'T ❌
+- Test implementation details (input validation belongs in unit tests)
+- Create complex scenarios with multiple users and workflows
+- Test non-critical happy paths (focus on acceptance criteria)
+- Use vague language ("system works correctly")
+
+---
+
+**Document Version:** 1.0  
+**Last Updated:** 2026-04-07  
+**Framework Compatibility:** Cucumber, JBehave
